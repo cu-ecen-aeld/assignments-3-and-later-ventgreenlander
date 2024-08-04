@@ -16,8 +16,9 @@ bool do_system(const char *cmd)
  *   and return a boolean true if the system() call completed with success
  *   or false() if it returned a failure
 */
+    int ret = system(cmd);
 
-    return true;
+    return (ret == 0 ? true : false);
 }
 
 /**
@@ -58,10 +59,25 @@ bool do_exec(int count, ...)
  *   as second argument to the execv() command.
  *
 */
+    int status;
+    pid_t pid = fork();
+
+    if(pid == 0){
+	// child
+	execv(command[0], command);
+	exit(EXIT_FAILURE);
+    } else {
+	// parent
+	wait(&status);
+
+	if (WIFEXITED(status)) {
+            printf("Parent wait exit status: %d\n", WEXITSTATUS(status));
+        }
+    }
 
     va_end(args);
 
-    return true;
+    return (status == 0);
 }
 
 /**
@@ -82,7 +98,7 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
     command[count] = NULL;
     // this line is to avoid a compile warning before your implementation is complete
     // and may be removed
-    command[count] = command[count];
+    //command[count] = command[count];
 
 
 /*
@@ -92,8 +108,41 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
  *   The rest of the behaviour is same as do_exec()
  *
 */
+    printf("outputfile is %s\n", outputfile);
+
+    int status;
+    pid_t pid = fork();
+
+    // this portion of the code heavily relied on the stoackoverflow referenced above
+    int output_fd = open(outputfile,O_RDWR|O_TRUNC|O_CREAT, 0644);
+    if (output_fd < 0) { 
+	perror("failed to open file"); 
+	return false; 
+    }
+
+    if(pid == 0){
+        // child
+
+        if (dup2(output_fd, 1) < 0) {
+		perror("dup2 failed");
+		return false; 
+        }
+        close(output_fd);
+
+        execv(command[0], command);
+        exit(EXIT_FAILURE);
+    } else {
+        // parent
+
+        close(output_fd);
+        wait(&status);
+
+        if (WIFEXITED(status)) {
+            printf("Parent wait exit status: %d\n", WEXITSTATUS(status));
+        }
+    }
 
     va_end(args);
 
-    return true;
+    return (status == 0);
 }
